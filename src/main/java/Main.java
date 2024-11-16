@@ -1,6 +1,5 @@
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -17,16 +16,15 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
     private static final String API_KEY = Main.getApiKey();
     private static final String API_URL = "https://api.nasa.gov/planetary/apod";
+    private static final int BUFFER_SIZE = 1024 * 1024; // 1MB should be enough
 
     public static void main(String[] args) {
-        //System.out.println(API_KEY);
         ConnectionConfig connConfig = ConnectionConfig.custom()
                 .setConnectTimeout(5, TimeUnit.SECONDS)
                 .setSocketTimeout(20, TimeUnit.SECONDS)
@@ -45,45 +43,40 @@ public class Main {
                 .setConnectionManager(cm)
                 .build()) {
 
-            //HttpGet request = new HttpGet(API_URL);
+            String imageURL = "";
             ClassicHttpRequest request = ClassicRequestBuilder.get(API_URL)
                     .addParameter("api_key", API_KEY)
                     .build();
-
-            String imageURL = "";
             try (CloseableHttpResponse response = httpClient.execute(request)) {
-                //String body = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
-                //System.out.println(body);
                 JsonNode node = new ObjectMapper().readTree(response.getEntity().getContent());
                 if (!node.has("hdurl")) {
-                    System.out.println("ERROR cannot find hdurl field in received json object");
-                    System.exit(1);
+                    throw new IOException("cannot find hdurl field in received json object");
                 }
                 imageURL = node.get("hdurl").asText();
             }
+
             System.out.println("hdurl: " + imageURL);
             String fileName = getFileNameFromURL(imageURL);
-            System.out.println(fileName);
+            if (fileName == null) {
+                throw new IOException("cannot get filename for storing the image");
+            }
+            System.out.println("filename: " + fileName);
 
             request = ClassicRequestBuilder.get(imageURL).build();
             try (CloseableHttpResponse response = httpClient.execute(request)) {
-                Arrays.stream(response.getHeaders()).forEach(System.out::println);
                 HttpEntity ent = response.getEntity();
                 if (ent == null) {
-                    System.out.println("ERROR cannot download image");
-                    System.exit(1);
+                    throw new IOException("cannot download image " + imageURL);
                 }
-                int bufferSize = 1024 * 1024; // 1MB should be enough
-                try (OutputStream outputStream = new BufferedOutputStream(new FileOutputStream(fileName), bufferSize)) {
+
+                try (OutputStream outputStream = new BufferedOutputStream(new FileOutputStream(fileName), BUFFER_SIZE)) {
                     ent.writeTo(outputStream);
                     outputStream.flush();
                 }
             }
-
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.out.println(e.getMessage());
         }
-
     }
 
     // Make it a little bit more secure than storing a key as plaintext
