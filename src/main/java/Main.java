@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
@@ -55,12 +54,10 @@ public class Main {
                 imageURL = node.get("hdurl").asText();
             }
 
-            System.out.println("hdurl: " + imageURL);
             String fileName = getFileNameFromURL(imageURL);
             if (fileName == null) {
                 throw new IOException("cannot get filename for storing the image");
             }
-            System.out.println("filename: " + fileName);
 
             request = ClassicRequestBuilder.get(imageURL).build();
             try (CloseableHttpResponse response = httpClient.execute(request)) {
@@ -69,7 +66,9 @@ public class Main {
                     throw new IOException("cannot download image " + imageURL);
                 }
 
-                try (OutputStream outputStream = new BufferedOutputStream(new FileOutputStream(fileName), BUFFER_SIZE)) {
+                try (OutputStream outputStream =
+                             new BufferedOutputStream(new FileOutputStream(fileName),
+                                     BUFFER_SIZE)) {
                     ent.writeTo(outputStream);
                     outputStream.flush();
                 }
@@ -83,7 +82,7 @@ public class Main {
     private static String getApiKey() {
         String prefix = "hwXUMAwCvIdIwGpOodLk";
         String suffix = "NXAcmp7XV5hHO3uAbAuk";
-        return new StringBuilder(prefix+suffix).reverse().toString();
+        return new StringBuilder(prefix + suffix).reverse().toString();
     }
 
     private static String getFileNameFromURL(String url) {
